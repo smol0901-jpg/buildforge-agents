@@ -1,11 +1,21 @@
 from __future__ import annotations
-import time, threading
+import os
+import time
+import threading
 from pathlib import Path
 from typing import Optional
+
 from core.types import Mode, Stage, ProjectKind, BuildResult, JobState
 from core.memory import Memory
 from core.resource_guard import ResourceGuard
 from core.event_bus import BUS
+from core.machine_profile import (
+    apply_env_defaults,
+    profile_summary,
+    MAX_FIX_RETRIES,
+    CPU_CRITICAL,
+    RAM_CRITICAL,
+)
 from agents.detector import DetectorAgent
 from agents.diagnostician import DiagnosticianAgent
 from agents.fixer import FixerAgent
@@ -14,15 +24,24 @@ from agents.verifier import VerifierAgent
 from agents.builders import BUILDERS
 from neural_core import system_prompt, KERNEL_NAME, KERNEL_VERSION, AUTHOR, CONTACTS
 
+
 class Orchestrator:
     """NEURAL_ARCHITECT_PREMIUM++ BuildForge orchestrator."""
 
-    def __init__(self, data_dir=None, max_fix_retries: int = 3):
+    def __init__(self, data_dir=None, max_fix_retries: int | None = None):
+        apply_env_defaults()
         data = Path(data_dir or Path.home() / ".buildforge")
         data.mkdir(parents=True, exist_ok=True)
         self.memory = Memory(data / "memory.db")
-        self.guard = ResourceGuard()
-        self.max_fix_retries = max_fix_retries
+        self.guard = ResourceGuard(
+            cpu_critical=float(os.getenv("BUILDFORGE_CPU_CRITICAL", str(CPU_CRITICAL))),
+            ram_critical=float(os.getenv("BUILDFORGE_RAM_CRITICAL", str(RAM_CRITICAL))),
+        )
+        self.max_fix_retries = (
+            max_fix_retries
+            if max_fix_retries is not None
+            else int(os.getenv("BUILDFORGE_MAX_FIX_RETRIES", str(MAX_FIX_RETRIES)))
+        )
         self.detector = DetectorAgent(self.memory, self.guard)
         self.diagnostician = DiagnosticianAgent(self.memory, self.guard)
         self.fixer = FixerAgent(self.memory, self.guard)
@@ -31,7 +50,20 @@ class Orchestrator:
         self.state: Optional[JobState] = None
         self._stop = threading.Event()
         self.llm = None
-        self.memory.set_fact("kernel", {"name": KERNEL_NAME, "version": KERNEL_VERSION, "author": AUTHOR, "contacts": CONTACTS})
+        self.memory.set_fact(
+            "kernel",
+            {"name": KERNEL_NAME, "version": KERNEL_VERSION, "author": AUTHOR, "contacts": CONTACTS},
+        )
+        self.memory.set_fact("machine_profile", profile_summary())
+        self.memory.set_fact(
+            "anti_freeze",
+            {
+                "cpu_critical": self.guard.cpu_critical,
+                "ram_critical": self.guard.ram_critical,
+                "cpu_recover": self.guard.cpu_recover,
+                "ram_recover": self.guard.ram_recover,
+            },
+        )
 
     def set_llm(self, llm_client) -> None:
         self.llm = llm_client
@@ -46,17 +78,54 @@ class Orchestrator:
             self.state.message = message
             if progress is not None:
                 self.state.progress = progress
-            BUS.emit("status", self.state.to_dict())
+            payload = self.state.to_dict()
+            payload["guard"] = self.guard.status_dict()
+            BUS.emit("status", payload)
         BUS.emit("log", {"agent": "orchestrator", "level": "info", "message": f"[{stage.value}] {message}"})
 
-    def run(self, project_dir: str, mode: Mode = Mode.AUTOPILOT, target: str = "exe+installer", entrypoint: str | None = None) -> BuildResult:
+    def _gate(self, stage_name: str) -> None:
+        """Anti-freeze gate between pipeline stages — paced if over caps."""
+        if self._stop.is_set():
+            return
+        s = self.guard.stage_pause(stage_name)
+        if s.gentle or s.mode != "normal":
+            BUS.emit(
+                "log",
+                {
+                    "agent": "orchestrator",
+                    "level": "info",
+                    "message": f"load gate [{stage_name}] mode={s.mode} CPU={s.cpu}% RAM={s.ram}%",
+                },
+            )
+
+    def run(
+        self,
+        project_dir: str,
+        mode: Mode = Mode.AUTOPILOT,
+        target: str = "exe+installer",
+        entrypoint: str | None = None,
+    ) -> BuildResult:
         self._stop.clear()
         t0 = time.time()
         root = str(Path(project_dir).resolve())
         self.state = JobState(project_dir=root, mode=mode)
         self.memory.add_message("system", f"job start mode={mode.value} project={root}")
-        BUS.emit("log", {"agent": "orchestrator", "level": "info", "message": f"{KERNEL_NAME} v{KERNEL_VERSION} · mode={mode.value}"})
+        prof = profile_summary()
+        BUS.emit(
+            "log",
+            {
+                "agent": "orchestrator",
+                "level": "info",
+                "message": (
+                    f"{KERNEL_NAME} v{KERNEL_VERSION} · mode={mode.value} · "
+                    f"anti-freeze CPU>={self.guard.cpu_critical}% RAM>={self.guard.ram_critical}% · "
+                    f"llm={prof.get('llm')} model={prof.get('model')}"
+                ),
+            },
+        )
+        self._gate("start")
 
+        # ---- DETECT ----
         self._set(Stage.DETECT, "Определение типа проекта (NAP++ decomposition)", 0.05)
         det = self.detector.detect(root)
         kind = det.kind
@@ -64,11 +133,14 @@ class Orchestrator:
         self.state.kind = kind
         if kind == ProjectKind.UNKNOWN:
             self._set(Stage.FAILED, "Не удалось определить тип проекта")
-            return BuildResult(False, Stage.FAILED, "unknown project type", kind=kind, duration_sec=time.time()-t0)
+            return BuildResult(False, Stage.FAILED, "unknown project type", kind=kind, duration_sec=time.time() - t0)
 
         if self._stop.is_set():
-            return BuildResult(False, Stage.FAILED, "stopped", kind=kind, duration_sec=time.time()-t0)
+            return BuildResult(False, Stage.FAILED, "stopped", kind=kind, duration_sec=time.time() - t0)
 
+        self._gate("after_detect")
+
+        # ---- DIAGNOSE ----
         self._set(Stage.DIAGNOSE, f"Диагностика toolchain для {kind.value}", 0.15)
         diag = self.diagnostician.diagnose(root, kind)
         if not diag.ok:
@@ -78,43 +150,63 @@ class Orchestrator:
                 self._set(Stage.FAILED, f"{msg}\nLLM: {advice[:500]}")
             else:
                 self._set(Stage.FAILED, msg)
-            return BuildResult(False, Stage.FAILED, msg, kind=kind, duration_sec=time.time()-t0, meta={"warnings": diag.warnings})
+            return BuildResult(
+                False, Stage.FAILED, msg, kind=kind, duration_sec=time.time() - t0, meta={"warnings": diag.warnings}
+            )
 
         builder_cls = BUILDERS.get(kind)
         if not builder_cls:
-            return BuildResult(False, Stage.FAILED, "no builder", kind=kind, duration_sec=time.time()-t0)
+            return BuildResult(False, Stage.FAILED, "no builder", kind=kind, duration_sec=time.time() - t0)
         builder = builder_cls(self.memory, self.guard)
 
-        self._set(Stage.PREPARE, "Подготовка окружения проекта", 0.3)
+        self._gate("after_diagnose")
+
+        # ---- PREPARE (staged) ----
+        self._set(Stage.PREPARE, "Подготовка окружения проекта (paced if load high)", 0.3)
         ok, prep_log = builder.prepare(root, entry)
         if not ok:
+            self._gate("fix_prepare")
             if self._fix_loop(prep_log, kind, root, mode):
+                self._gate("retry_prepare")
                 ok, prep_log = builder.prepare(root, entry)
         if not ok:
             self._set(Stage.FAILED, "prepare failed")
-            return BuildResult(False, Stage.FAILED, prep_log[-2000:], log_tail=prep_log[-2000:], kind=kind, duration_sec=time.time()-t0)
+            return BuildResult(
+                False, Stage.FAILED, prep_log[-2000:], log_tail=prep_log[-2000:], kind=kind, duration_sec=time.time() - t0
+            )
 
+        self._gate("after_prepare")
+
+        # ---- BUILD ----
         self._set(Stage.BUILD, f"Сборка {kind.value} → EXE", 0.5)
         ok, blog, artifacts = builder.build(root, entry)
         retries = 0
         while not ok and retries < self.max_fix_retries and not self._stop.is_set():
             retries += 1
+            self._gate(f"fix_{retries}")
             self._set(Stage.FIX, f"Self-healing {retries}/{self.max_fix_retries}", 0.5 + retries * 0.05)
             if not self._fix_loop(blog, kind, root, mode):
                 if mode == Mode.NEURAL and self.llm:
+                    self._gate("llm_fix")
                     self._llm_code_fix(root, kind, blog)
                 else:
                     break
+            self._gate(f"rebuild_{retries}")
             ok, blog, artifacts = builder.build(root, entry)
 
         if not ok or not artifacts:
             self._set(Stage.FAILED, "сборка не дала артефактов (truth chain)")
             self.memory.record_lesson(blog[-800:], "build_failed", {"kind": kind.value}, kind.value, False)
-            return BuildResult(False, Stage.FAILED, "build failed", log_tail=blog[-3000:], kind=kind, duration_sec=time.time()-t0)
+            return BuildResult(
+                False, Stage.FAILED, "build failed", log_tail=blog[-3000:], kind=kind, duration_sec=time.time() - t0
+            )
 
         self.state.artifacts = list(artifacts)
         final_artifacts = list(artifacts)
 
+        self._gate("after_build")
+
+        # ---- PACKAGE ----
         if "installer" in target or "zip" in target or target == "exe+installer":
             self._set(Stage.PACKAGE, "Упаковка ZIP / installer", 0.8)
             name = Path(root).name or "app"
@@ -123,11 +215,16 @@ class Orchestrator:
                 final_artifacts.append(z)
             exe = next((a for a in artifacts if a.lower().endswith(".exe")), None)
             if exe and "installer" in target:
+                self._gate("installer")
                 final_artifacts += self.packager.make_installer(exe, root, name=name)
 
+        self._gate("after_package")
+
+        # ---- VERIFY ----
         self._set(Stage.VERIFY, "Smoke-проверка (truth verification)", 0.9)
         verify_notes = []
         for a in artifacts:
+            self._gate("verify_item")
             vok, vmsg = self.verifier.verify_exe(a)
             verify_notes.append(f"{Path(a).name}: {vmsg}")
 
@@ -136,11 +233,24 @@ class Orchestrator:
         self.state.artifacts = final_artifacts
         self._set(Stage.DONE, f"Готово · {len(final_artifacts)} артефакт(ов)", 1.0)
         sig = f"\n— {AUTHOR} · {CONTACTS.get('telegram')} · {KERNEL_NAME}"
-        return BuildResult(True, Stage.DONE, "ok" + sig, artifacts=final_artifacts,
-                           log_tail="\n".join(verify_notes), duration_sec=time.time()-t0, kind=kind,
-                           meta={"kernel": KERNEL_VERSION, "mode": mode.value})
+        return BuildResult(
+            True,
+            Stage.DONE,
+            "ok" + sig,
+            artifacts=final_artifacts,
+            log_tail="\n".join(verify_notes),
+            duration_sec=time.time() - t0,
+            kind=kind,
+            meta={
+                "kernel": KERNEL_VERSION,
+                "mode": mode.value,
+                "guard": self.guard.status_dict(),
+                "profile": profile_summary(),
+            },
+        )
 
     def _fix_loop(self, log_text: str, kind: ProjectKind, root: str, mode: Mode) -> bool:
+        self._gate("fix_match")
         action = self.fixer.match(log_text, kind)
         if not action:
             if mode == Mode.NEURAL and self.llm:
@@ -153,10 +263,19 @@ class Orchestrator:
         if not self.llm:
             return ""
         try:
-            return self.llm.chat([
-                {"role": "system", "content": system_prompt("Ты — ядро BuildForge / NEURAL_ARCHITECT_PREMIUM++. Помогай чинить сборки.")},
-                {"role": "user", "content": user_msg},
-            ])
+            self._gate("llm_chat")
+            return self.llm.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": system_prompt(
+                            "Ты — ядро BuildForge / NEURAL_ARCHITECT_PREMIUM++. Помогай чинить сборки. "
+                            "Отвечай кратко. Если нужна команда Windows — одна строка CMD: ..."
+                        ),
+                    },
+                    {"role": "user", "content": user_msg},
+                ]
+            )
         except Exception as e:
             return str(e)
 
@@ -172,6 +291,7 @@ class Orchestrator:
         for line in (ans or "").splitlines():
             if line.strip().upper().startswith("CMD:"):
                 cmd = line.split(":", 1)[1].strip()
+                self._gate("llm_cmd")
                 code, _out = self.fixer.run_cmd(cmd, cwd=root, timeout=1800)
                 self.memory.record_lesson(log_text[-500:], "llm_cmd", {"cmd": cmd}, kind.value, code == 0)
                 return code == 0
@@ -186,11 +306,12 @@ class Orchestrator:
                     return "Укажи папку проекта"
                 res = self.run(project_dir, mode=Mode.AUTOPILOT)
                 return f"autopilot: ok={res.ok} stage={res.stage.value} artifacts={res.artifacts}"
-            return "LLM не подключён. Режим autopilot/manual. Подключи Ollama/GGUF/OpenAI."
+            return "LLM не подключён. Режим autopilot/manual. Подключи Ollama (Bonsai) или укажи --llm."
         proj = project_dir or (self.state.project_dir if self.state else "")
         ctx = system_prompt(f"project_dir={proj}")
         hist = self.memory.history(20)
         messages = [{"role": "system", "content": ctx}] + hist + [{"role": "user", "content": user_text}]
+        self._gate("neural_chat")
         ans = self.llm.chat(messages)
         self.memory.add_message("assistant", ans)
         if "ASV_PROD" not in ans and "@ASV_prod" not in ans:
