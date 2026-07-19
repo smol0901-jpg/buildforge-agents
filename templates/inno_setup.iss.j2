@@ -1,0 +1,14 @@
+[Setup]
+AppName={{ name }}
+AppVersion={{ version }}
+DefaultDirName={pf}\{{ name }}
+OutputDir={{ out_dir }}
+OutputBaseFilename={{ name }}_Setup
+Compression=lzma
+SolidCompression=yes
+
+[Files]
+Source: "{{ payload }}"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{commondesktop}\{{ name }}"; Filename: "{app}\{{ payload_name }}"

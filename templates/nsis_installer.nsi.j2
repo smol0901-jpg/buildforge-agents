@@ -1,0 +1,10 @@
+!Name "{{ name }}"
+OutFile "{{ out_exe }}"
+InstallDir "$PROGRAMFILES\{{ name }}"
+Page directory
+Page instfiles
+Section "Install"
+  SetOutPath "$INSTDIR"
+  File "{{ payload }}"
+  CreateShortCut "$DESKTOP\{{ name }}.lnk" "$INSTDIR\{{ payload_name }}"
+SectionEnd
