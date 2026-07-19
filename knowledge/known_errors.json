@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "py_mod_not_found",
+      "stacks": [
+        "python"
+      ],
+      "patterns": [
+        "ModuleNotFoundError: No module named '([^']+)'",
+        "No module named ([\\w\\.]+)"
+      ],
+      "fix": {
+        "action": "pip_install",
+        "args_from_match": [
+          "package"
+        ]
+      },
+      "description": "Missing Python module"
+    },
+    {
+      "id": "py_pyinstaller_missing",
+      "stacks": [
+        "python"
+      ],
+      "patterns": [
+        "No module named 'PyInstaller'",
+        "'pyinstaller' is not recognized"
+      ],
+      "fix": {
+        "action": "pip_install",
+        "package": "pyinstaller"
+      },
+      "description": "No PyInstaller"
+    },
+    {
+      "id": "node_modules_missing",
+      "stacks": [
+        "electron",
+        "html"
+      ],
+      "patterns": [
+        "Cannot find module",
+        "ERR! missing:"
+      ],
+      "fix": {
+        "action": "npm_install"
+      },
+      "description": "npm install needed"
+    },
+    {
+      "id": "electron_builder_missing",
+      "stacks": [
+        "electron"
+      ],
+      "patterns": [
+        "electron-builder",
+        "Cannot find module 'electron-builder'"
+      ],
+      "fix": {
+        "action": "npm_install_dev",
+        "package": "electron-builder"
+      },
+      "description": "No electron-builder"
+    },
+    {
+      "id": "dotnet_missing",
+      "stacks": [
+        "csharp"
+      ],
+      "patterns": [
+        "'dotnet' is not recognized"
+      ],
+      "fix": {
+        "action": "report_toolchain",
+        "tool": "dotnet"
+      },
+      "description": "Need .NET SDK"
+    },
+    {
+      "id": "cmake_missing",
+      "stacks": [
+        "cpp"
+      ],
+      "patterns": [
+        "'cmake' is not recognized"
+      ],
+      "fix": {
+        "action": "report_toolchain",
+        "tool": "cmake"
+      },
+      "description": "Need CMake"
+    },
+    {
+      "id": "access_denied_defender",
+      "stacks": [
+        "python",
+        "electron",
+        "csharp",
+        "cpp",
+        "html"
+      ],
+      "patterns": [
+        "Access is denied",
+        "PermissionError",
+        "WinError 5"
+      ],
+      "fix": {
+        "action": "defender_exclusion"
+      },
+      "description": "Defender"
+    },
+    {
+      "id": "tsc_error",
+      "stacks": [
+        "electron"
+      ],
+      "patterns": [
+        "error TS\\d+"
+      ],
+      "fix": {
+        "action": "llm_or_manual",
+        "hint": "Fix TypeScript errors"
+      },
+      "description": "TS"
+    },
+    {
+      "id": "msb_compile",
+      "stacks": [
+        "csharp",
+        "cpp"
+      ],
+      "patterns": [
+        "error CS\\d+",
+        "error C\\d+",
+        "MSB\\d+"
+      ],
+      "fix": {
+        "action": "llm_or_manual",
+        "hint": "Fix compile errors"
+      },
+      "description": "Compile"
+    }
+  ]
+}
