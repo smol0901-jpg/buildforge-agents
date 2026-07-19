@@ -2,422 +2,540 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-<title>BuildForge Agents · NEURAL_ARCHITECT_PREMIUM++</title>
-<meta name="description" content="Мультиагентная фабрика сборки Electron · C++ · C# · Python · HTML → EXE. Ядро NEURAL_ARCHITECT_PREMIUM++ / INTENTION_ENGINE v8.4. ASV_PROD." />
-<meta property="og:title" content="BuildForge Agents · NAP++" />
-<meta property="og:description" content="Autopilot · Neural · Phone control. Сборка ПО в EXE с self-healing." />
-<meta property="og:type" content="website" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BuildForge Agents — система, принципы, ядро</title>
+<meta name="description" content="BuildForge Agents: мультиагентная система сборки Electron/C++/C#/Python/HTML → EXE. Ядро NEURAL_ARCHITECT_PREMIUM++ / INTENTION_ENGINE v8.4. Документация по устройству." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-:root{
-  --bg:#03040a; --fg:#e8eefc; --muted:#8b9bb8; --accent:#7c5cff;
-  --accent2:#00e5ff; --accent3:#ff4d9a; --card:rgba(12,16,32,.72);
-  --line:rgba(124,92,255,.35); --glow:0 0 40px rgba(124,92,255,.45);
+:root {
+  --bg: #0b0f14;
+  --bg2: #121820;
+  --card: #151c26;
+  --line: #243041;
+  --text: #e7eef8;
+  --muted: #8b9bb0;
+  --accent: #3d8bfd;
+  --ok: #3dd68c;
+  --warn: #f0b429;
+  --code: #0a1018;
+  --max: 920px;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg);color:var(--fg);font-family:Manrope,system-ui,sans-serif;overflow-x:hidden}
-body{cursor:default}
-#webgl{position:fixed;inset:0;z-index:0;pointer-events:none}
-.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
-  background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.75) 100%),
-             linear-gradient(180deg, rgba(3,4,10,.2), transparent 20%, transparent 70%, rgba(3,4,10,.95));}
-.noise{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.05;
-  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
-.scan{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.07;
-  background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.35) 3px);}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  font-size: 16px;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.9em; }
+code {
+  background: var(--code);
+  border: 1px solid var(--line);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.5;
+  margin: 12px 0 18px;
+}
+pre code { border: 0; background: none; padding: 0; }
 
-.nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
-  padding:18px 28px;backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(3,4,10,.85),transparent);
-  border-bottom:1px solid transparent}
-.nav.scrolled{border-bottom-color:var(--line);background:rgba(3,4,10,.78)}
-.logo{font-family:Orbitron,sans-serif;font-weight:700;letter-spacing:.08em;font-size:14px;display:flex;gap:10px;align-items:center}
-.logo i{width:10px;height:10px;border-radius:50%;background:var(--accent2);box-shadow:0 0 16px var(--accent2);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.nav a{color:var(--muted);text-decoration:none;margin-left:22px;font-size:13px;font-weight:600;transition:.2s}
-.nav a:hover{color:var(--fg)}
-.nav .cta{color:#fff;background:linear-gradient(135deg,var(--accent),#4f46e5);padding:10px 16px;border-radius:999px;box-shadow:var(--glow)}
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
 
-main{position:relative;z-index:10}
-.section{min-height:100vh;display:flex;align-items:center;padding:100px 8vw;position:relative}
-.hero{flex-direction:column;justify-content:center;text-align:left;align-items:flex-start}
-.kicker{font-family:Orbitron,sans-serif;font-size:12px;letter-spacing:.28em;color:var(--accent2);text-transform:uppercase;margin-bottom:18px;opacity:0;transform:translateY(20px)}
-h1{font-family:Orbitron,sans-serif;font-weight:900;font-size:clamp(2.4rem,6.5vw,5.2rem);line-height:1.05;
-  letter-spacing:-.02em;max-width:14ch;opacity:0;transform:translateY(30px)}
-h1 .grad{background:linear-gradient(120deg,#fff 10%,var(--accent2) 45%,var(--accent) 75%,var(--accent3));
-  -webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 30px rgba(0,229,255,.25))}
-.lead{margin-top:22px;max-width:52ch;color:var(--muted);font-size:clamp(1rem,1.6vw,1.2rem);line-height:1.65;opacity:0;transform:translateY(24px)}
-.hero-actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px;opacity:0;transform:translateY(24px)}
-.btn{appearance:none;border:0;cursor:pointer;font-family:Manrope,sans-serif;font-weight:700;font-size:15px;
-  padding:14px 22px;border-radius:14px;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:.25s transform,.25s box-shadow}
-.btn:hover{transform:translateY(-2px)}
-.btn-primary{color:#fff;background:linear-gradient(135deg,var(--accent),#5b21b6);box-shadow:var(--glow)}
-.btn-ghost{color:var(--fg);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px)}
-.meta-row{display:flex;flex-wrap:wrap;gap:18px;margin-top:40px;opacity:0}
-.chip{font-size:12px;color:var(--muted);border:1px solid rgba(255,255,255,.1);padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.03)}
-.chip b{color:var(--fg);font-weight:700}
+/* top bar */
+.top {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(11,15,20,.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.top-inner {
+  max-width: var(--max); margin: 0 auto; padding: 12px 20px;
+  display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+}
+.brand { font-weight: 700; letter-spacing: .02em; }
+.brand span { color: var(--muted); font-weight: 500; font-size: .9em; }
+.top nav { display: flex; flex-wrap: wrap; gap: 14px; font-size: .92em; }
+.top nav a { color: var(--muted); }
+.top nav a:hover { color: var(--text); text-decoration: none; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: #fff !important; text-decoration: none !important;
+  padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: .92em;
+}
+.btn.secondary { background: transparent; border: 1px solid var(--line); color: var(--text) !important; }
+.btn:hover { filter: brightness(1.08); }
 
-.reveal{opacity:0;transform:translateY(40px);transition:opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1)}
-.reveal.on{opacity:1;transform:none}
+/* hero */
+.hero { padding: 48px 0 28px; border-bottom: 1px solid var(--line); }
+.hero .tag {
+  display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ok); border: 1px solid rgba(61,214,140,.35);
+  background: rgba(61,214,140,.08); padding: 4px 10px; border-radius: 999px; margin-bottom: 14px;
+}
+.hero h1 { font-size: clamp(1.8rem, 4vw, 2.4rem); line-height: 1.2; margin-bottom: 12px; }
+.hero .lead { color: var(--muted); font-size: 1.08rem; max-width: 62ch; }
+.hero .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.meta {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px; margin-top: 28px;
+}
+.meta .item {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+.meta .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.meta .v { font-weight: 600; margin-top: 4px; font-size: .95rem; }
 
-.panel{width:100%;max-width:1100px}
-.section h2{font-family:Orbitron,sans-serif;font-size:clamp(1.6rem,3.5vw,2.6rem);margin-bottom:12px}
-.section .sub{color:var(--muted);max-width:60ch;margin-bottom:36px;line-height:1.6}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;backdrop-filter:blur(16px);
-  box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative;overflow:hidden;transition:.3s transform, .3s border-color}
-.card:hover{transform:translateY(-4px);border-color:rgba(0,229,255,.45)}
-.card::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;
-  background:linear-gradient(135deg,rgba(124,92,255,.5),transparent 40%,rgba(0,229,255,.35));
-  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.7}
-.card .ico{font-size:22px;margin-bottom:12px}
-.card h3{font-size:1.05rem;margin-bottom:8px}
-.card p{color:var(--muted);font-size:.92rem;line-height:1.55}
+/* sections */
+section { padding: 40px 0; border-bottom: 1px solid var(--line); }
+section h2 {
+  font-size: 1.45rem; margin-bottom: 8px; padding-top: 8px;
+  border-left: 3px solid var(--accent); padding-left: 12px;
+}
+section h3 { font-size: 1.08rem; margin: 22px 0 8px; }
+section p, section li { color: #c9d4e3; }
+section .intro { color: var(--muted); margin-bottom: 18px; max-width: 70ch; }
+ul, ol { padding-left: 1.25rem; margin: 8px 0 14px; }
+li { margin: 6px 0; }
+li strong { color: var(--text); }
 
-.pipeline{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-.pipe{font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:.06em;padding:10px 12px;border-radius:10px;
-  background:rgba(124,92,255,.12);border:1px solid rgba(124,92,255,.35);color:#d6ccff}
-.pipe span{opacity:.45;margin:0 6px}
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin: 14px 0; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+}
+.card h4 { margin-bottom: 6px; font-size: 1rem; }
+.card p, .card li { font-size: .94rem; }
+.card .path { color: var(--accent); font-family: "IBM Plex Mono", monospace; font-size: .82rem; margin-bottom: 8px; }
 
-.cinema{position:relative;border-radius:24px;overflow:hidden;border:1px solid var(--line);
-  background:linear-gradient(180deg,rgba(20,16,40,.8),rgba(5,8,18,.9));min-height:320px;padding:28px}
-.cinema .frame{position:absolute;inset:0;background:
-  radial-gradient(circle at 20% 30%, rgba(124,92,255,.25), transparent 40%),
-  radial-gradient(circle at 80% 70%, rgba(0,229,255,.18), transparent 45%);
-  pointer-events:none}
-.cinema-inner{position:relative;z-index:2}
-.quote{font-size:clamp(1.1rem,2.2vw,1.45rem);line-height:1.5;max-width:36ch;font-weight:600}
-.quote em{font-style:normal;color:var(--accent2)}
+.table-wrap { overflow-x: auto; margin: 14px 0; }
+table { width: 100%; border-collapse: collapse; font-size: .94rem; }
+th, td { border: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { background: var(--bg2); color: var(--muted); font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+td code { font-size: .84em; }
 
-.dl{display:grid;grid-template-columns:1.2fr .8fr;gap:22px}
-@media (max-width:860px){.dl{grid-template-columns:1fr}.nav a:not(.cta){display:none}}
-.dl-box{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:28px;backdrop-filter:blur(16px)}
-.dl-box code{display:block;background:#0a0d18;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin:14px 0;
-  color:#b8f0ff;font-size:13px;overflow:auto;white-space:pre}
-.author{display:flex;gap:16px;align-items:center}
-.avatar{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--accent2));
-  display:grid;place-items:center;font-family:Orbitron,sans-serif;font-weight:900;font-size:18px;box-shadow:var(--glow)}
-.author h3{font-size:1.05rem}
-.author p{color:var(--muted);font-size:.9rem;margin-top:4px}
-.links a{color:var(--accent2);text-decoration:none;margin-right:14px;font-weight:600;font-size:.92rem}
-.links a:hover{text-decoration:underline}
+.flow {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 14px 0 8px;
+}
+.flow .step {
+  background: var(--bg2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 12px; font-family: "IBM Plex Mono", monospace; font-size: .82rem; font-weight: 500;
+}
+.flow .arrow { color: var(--muted); }
 
-footer{position:relative;z-index:10;padding:40px 8vw 60px;color:var(--muted);font-size:13px;border-top:1px solid rgba(255,255,255,.06)}
-footer strong{color:var(--fg)}
-.scroll-hint{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:40;color:var(--muted);font-size:12px;
-  letter-spacing:.2em;text-transform:uppercase;opacity:.7;animation:bob 2.2s ease-in-out infinite}
-@keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,-8px)}}
-.progress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent2),var(--accent),var(--accent3));z-index:60;width:0}
+.callout {
+  border-left: 3px solid var(--warn);
+  background: rgba(240,180,41,.07);
+  padding: 12px 14px; border-radius: 0 10px 10px 0; margin: 16px 0;
+  color: #e8d9a8; font-size: .95rem;
+}
+.callout.ok { border-left-color: var(--ok); background: rgba(61,214,140,.07); color: #bfe9d2; }
+.callout b { color: var(--text); }
+
+.tree {
+  background: var(--code); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; font-family: "IBM Plex Mono", monospace; font-size: .84rem;
+  line-height: 1.55; color: #b7c5d6; white-space: pre; overflow-x: auto; margin: 12px 0 18px;
+}
+
+.author {
+  display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+}
+.avatar {
+  width: 64px; height: 64px; border-radius: 12px;
+  background: linear-gradient(135deg, #1f4b99, #3d8bfd);
+  display: grid; place-items: center; font-weight: 700; letter-spacing: .04em;
+}
+.author h3 { margin: 0 0 4px; }
+.author p { color: var(--muted); margin: 0 0 10px; font-size: .95rem; }
+.author .links { display: flex; flex-wrap: wrap; gap: 12px; }
+
+footer {
+  padding: 28px 0 48px; color: var(--muted); font-size: .88rem;
+}
+footer strong { color: var(--text); }
+
+@media (max-width: 600px) {
+  .author { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<div class="progress" id="progress"></div>
-<canvas id="webgl"></canvas>
-<div class="vignette"></div>
-<div class="noise"></div>
-<div class="scan"></div>
 
-<nav class="nav" id="nav">
-  <div class="logo"><i></i> BUILDFORGE · NAP++</div>
-  <div>
-    <a href="#features">Возможности</a>
-    <a href="#pipeline">Пайплайн</a>
-    <a href="#download">Скачать</a>
-    <a href="#author">Автор</a>
-    <a class="cta" href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">GitHub</a>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">BuildForge Agents <span>· docs</span></div>
+    <nav>
+      <a href="#what">Что это</a>
+      <a href="#why">Зачем</a>
+      <a href="#arch">Архитектура</a>
+      <a href="#pipeline">Как работает</a>
+      <a href="#kernel">Ядро</a>
+      <a href="#modes">Режимы</a>
+      <a href="#start">Запуск</a>
+      <a href="#author">Автор</a>
+    </nav>
   </div>
-</nav>
+</header>
 
 <main>
-  <section class="section hero" id="top">
-    <div class="kicker" id="kicker">NEURAL_ARCHITECT_PREMIUM++ · INTENTION_ENGINE v8.4</div>
-    <h1 id="title"><span class="grad">BuildForge Agents</span><br/>фабрика EXE</h1>
-    <p class="lead" id="lead">
-      Кинематографичный мультиагентный конвейер: сам определяет стек, чинит ошибки, собирает
-      <b style="color:#fff">Electron · C++ · C# · Python · HTML</b> в EXE и инсталляторы.
-      Autopilot без LLM · Neural на Ollama/GGUF/Cloud · управление с телефона.
-    </p>
-    <div class="hero-actions" id="actions">
-      <a class="btn btn-primary" href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">⬇ Скачать с GitHub</a>
-      <a class="btn btn-ghost" href="https://github.com/smol0901-jpg/buildforge-agents/archive/refs/heads/main.zip">ZIP · main</a>
-      <a class="btn btn-ghost" href="https://smol0901-jpg.github.io/INTENTION_ENGINE_v8.4.00/" target="_blank" rel="noopener">Ядро INTENTION_ENGINE</a>
-    </div>
-    <div class="meta-row" id="meta">
-      <div class="chip"><b>Kernel</b> · 8.4.00-buildforge</div>
-      <div class="chip"><b>Modes</b> · autopilot / manual / neural</div>
-      <div class="chip"><b>Self-heal</b> · known_errors → memory → LLM</div>
-      <div class="chip"><b>Phone</b> · LAN :8787</div>
-    </div>
-  </section>
+  <div class="wrap">
+    <header class="hero">
+      <div class="tag">Документация по реальному репозиторию · main</div>
+      <h1>BuildForge Agents</h1>
+      <p class="lead">
+        Локальная мультиагентная система на Python, которая берёт исходники проекта
+        (Electron, C++, C#, Python, HTML), готовит окружение, собирает артефакты
+        (в первую очередь Windows EXE / portable / installer), при ошибках пытается
+        исправить их по правилам и памяти, и только потом считает задачу успешной.
+      </p>
+      <div class="actions">
+        <a class="btn" href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">Репозиторий GitHub</a>
+        <a class="btn secondary" href="https://github.com/smol0901-jpg/buildforge-agents/archive/refs/heads/main.zip">Скачать ZIP (main)</a>
+        <a class="btn secondary" href="https://github.com/smol0901-jpg/setuper" target="_blank" rel="noopener">Предок: setuper</a>
+      </div>
+      <div class="meta">
+        <div class="item"><div class="k">Версия ядра</div><div class="v">8.4.00-buildforge</div></div>
+        <div class="item"><div class="k">Имя ядра</div><div class="v">NEURAL_ARCHITECT_PREMIUM++ BuildForge</div></div>
+        <div class="item"><div class="k">Лицензия</div><div class="v">MIT · ASV_PROD</div></div>
+        <div class="item"><div class="k">Стек UI/API</div><div class="v">PySide6 · FastAPI · Typer</div></div>
+        <div class="item"><div class="k">Память</div><div class="v">SQLite ~/.buildforge/memory.db</div></div>
+        <div class="item"><div class="k">Файлов в repo</div><div class="v">~55 исходников</div></div>
+      </div>
+    </header>
 
-  <section class="section" id="features">
-    <div class="panel">
-      <h2 class="reveal">Не просто билдер.<br/>Агентная система.</h2>
-      <p class="sub reveal">Каждый шаг — отдельный агент. Оркестратор NAP++ ведёт decomposition, truth-chain и vector correction как в полном промте NEURAL_ARCHITECT_PREMIUM++.</p>
+    <section id="what">
+      <h2>Что это такое (по факту)</h2>
+      <p class="intro">
+        Это не «магический ИИ, который пишет любой софт». Это <strong>оркестратор сборки</strong>
+        с набором агентов и builders. Точка входа — <code>app.py</code>. Центр — класс
+        <code>Orchestrator</code> в <code>core/orchestrator.py</code>.
+      </p>
+      <ul>
+        <li><strong>Вход:</strong> путь к папке проекта на диске.</li>
+        <li><strong>Выход:</strong> список артефактов (пути к файлам) + лог + статус ok/fail.</li>
+        <li><strong>Успех:</strong> только если после build есть реальные файлы-артефакты (truth chain). Пустой dist = fail.</li>
+        <li><strong>Эволюция:</strong> развитие идей <a href="https://github.com/smol0901-jpg/setuper" target="_blank" rel="noopener">setuper</a> / BuildDoctor в сторону агентной фабрики.</li>
+      </ul>
+      <h3>Что система умеет собирать</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Тип (ProjectKind)</th><th>Как детектится</th><th>Builder</th><th>Что делает</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>electron</code></td>
+              <td><code>package.json</code> + electron / electron-builder в deps или scripts</td>
+              <td><code>agents/builders/electron_builder.py</code></td>
+              <td><code>npm install</code>, при необходимости ставит electron-builder, затем <code>npm run dist|build</code> или <code>npx electron-builder --win</code>. Ищет .exe/.msi в dist/release/out</td>
+            </tr>
+            <tr>
+              <td><code>python</code></td>
+              <td>pyproject/requirements/setup.py или *.py</td>
+              <td><code>python_builder.py</code></td>
+              <td>venv → pip install pyinstaller + requirements → <code>PyInstaller --onefile</code></td>
+            </tr>
+            <tr>
+              <td><code>csharp</code></td>
+              <td>*.csproj / *.sln</td>
+              <td><code>csharp_builder.py</code></td>
+              <td><code>dotnet restore</code> + <code>dotnet publish</code> win-x64 self-contained single file</td>
+            </tr>
+            <tr>
+              <td><code>cpp</code></td>
+              <td>CMakeLists.txt / *.vcxproj</td>
+              <td><code>cpp_builder.py</code></td>
+              <td><code>cmake -S/-B</code> (MSVC или MinGW) → <code>cmake --build</code> Release, копирует .exe в dist</td>
+            </tr>
+            <tr>
+              <td><code>html</code></td>
+              <td>index.html / *.html</td>
+              <td><code>html_builder.py</code></td>
+              <td>Копирует статику в dist/html_app, делает run.bat (Edge/Chrome app mode), zip portable</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <b>Ограничение правды:</b> HTML-сборка — это portable-обёртка (zip + bat), а не компиляция в нативный GUI-движок.
+        C++/C#/Electron/Python завязаны на установленный toolchain на машине пользователя.
+      </div>
+    </section>
+
+    <section id="why">
+      <h2>Зачем так устроено</h2>
+      <p class="intro">Принципы, которые реально заложены в код и в <code>neural_core/</code> — не маркетинг, а правила принятия решений.</p>
       <div class="grid">
-        <article class="card reveal"><div class="ico">🛰️</div><h3>Detector</h3><p>Авто-распознавание Electron / .NET / CMake / Python / HTML по маркерам проекта.</p></article>
-        <article class="card reveal"><div class="ico">🩺</div><h3>Diagnostician</h3><p>Проверка toolchain: node, npm, dotnet, cmake, pyinstaller, NSIS/Inno.</p></article>
-        <article class="card reveal"><div class="ico">🔧</div><h3>Fixer + Memory</h3><p>Правила known_errors.json + SQLite-уроки. Ошибки не повторяются зря.</p></article>
-        <article class="card reveal"><div class="ico">🧠</div><h3>Neural mode</h3><p>Ollama, локальный GGUF (llama.cpp) или OpenAI-compatible cloud/LM Studio.</p></article>
-        <article class="card reveal"><div class="ico">📦</div><h3>Packager</h3><p>EXE · portable ZIP · NSIS/Inno installers. Truth chain: успех = файл на диске.</p></article>
-        <article class="card reveal"><div class="ico">📱</div><h3>Phone cockpit</h3><p>FastAPI + WebSocket UI. Запуск и стоп сборки с телефона в той же Wi‑Fi сети.</p></article>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="pipeline">
-    <div class="panel">
-      <h2 class="reveal">Кино-пайплайн</h2>
-      <p class="sub reveal">Восемь колен decomposition. Как Immersion-сцена: камера скользит по этапам, пока агенты работают.</p>
-      <div class="cinema reveal">
-        <div class="frame"></div>
-        <div class="cinema-inner">
-          <p class="quote">«Сначала <em>истина артефакта</em>, потом отчёт. Нет EXE — нет победы.»</p>
-          <div class="pipeline" style="margin-top:28px">
-            <div class="pipe">1 DETECT</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">2 DIAGNOSE</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">3 PREPARE</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">4 BUILD</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">5 FIX-LOOP</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">6 PACKAGE</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">7 VERIFY</div><span class="pipe" style="background:transparent;border:0;padding:10px 0">→</span>
-            <div class="pipe">8 REMEMBER</div>
-          </div>
-          <p style="margin-top:22px;color:var(--muted);max-width:60ch;line-height:1.6">
-            Ядро: <a style="color:var(--accent2)" href="https://github.com/smol0901-jpg/neural-architect-premium-pages/blob/main/v8.txt" target="_blank" rel="noopener">v8 ULTIMATE</a>
-            + <a style="color:var(--accent2)" href="https://smol0901-jpg.github.io/INTENTION_ENGINE_v8.4.00/" target="_blank" rel="noopener">INTENTION_ENGINE v8.4.00</a>
-            внутри <code style="color:#fff">neural_core/</code>.
-          </p>
+        <div class="card">
+          <h4>1. Decomposition</h4>
+          <p>Большая задача «собери проект» режется на стадии: detect → diagnose → prepare → build → fix → package → verify → remember. Каждая стадия — отдельный агент или метод builder.</p>
+        </div>
+        <div class="card">
+          <h4>2. Truth verification</h4>
+          <p>Отчёт «успех» без файла на диске запрещён. В оркестраторе: <code>if not ok or not artifacts → FAILED</code> с текстом про truth chain. Verifier дополнительно smoke-запускает .exe.</p>
+        </div>
+        <div class="card">
+          <h4>3. Self-healing по слоям</h4>
+          <p>Сначала memory (SQLite lessons), потом rules из <code>knowledge/known_errors.json</code>, потом (только в neural) LLM-команда. Не «сразу GPT».</p>
+        </div>
+        <div class="card">
+          <h4>4. Autopilot без обязательного LLM</h4>
+          <p>Режим <code>autopilot</code> работает на правилах и builders. LLM — опция (<code>neural</code>), не зависимость.</p>
+        </div>
+        <div class="card">
+          <h4>5. Память между запусками</h4>
+          <p><code>core/memory.py</code>: lessons, facts, actions, messages. Повторяющиеся ошибки накапливают hits и предлагают тот же fix.</p>
+        </div>
+        <div class="card">
+          <h4>6. Защита ресурсов</h4>
+          <p><code>ResourceGuard</code> смотрит RAM через psutil и делает breath/wait, чтобы не ронять машину на тяжёлых build.</p>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section class="section" id="download">
-    <div class="panel">
-      <h2 class="reveal">Скачать и запустить</h2>
-      <p class="sub reveal">Репозиторий открыт. Windows-first. GUI на PySide6, CLI на Typer, phone API на FastAPI.</p>
-      <div class="dl">
-        <div class="dl-box reveal">
-          <h3 style="font-family:Orbitron,sans-serif;margin-bottom:8px">Quick start</h3>
-          <code>git clone https://github.com/smol0901-jpg/buildforge-agents.git
+    <section id="arch">
+      <h2>Архитектура системы</h2>
+      <p class="intro">Структура репозитория (то, что лежит в GitHub сейчас):</p>
+      <div class="tree">buildforge-agents/
+├── app.py                 # CLI/GUI/phone entry (Typer)
+├── core/
+│   ├── orchestrator.py    # главный цикл job
+│   ├── types.py           # ProjectKind, Mode, Stage, BuildResult…
+│   ├── memory.py          # SQLite lessons/facts/actions/messages
+│   ├── event_bus.py       # pub/sub логов и status
+│   └── resource_guard.py  # RAM guard
+├── agents/
+│   ├── base.py            # run_cmd, log, which
+│   ├── detector.py
+│   ├── diagnostician.py
+│   ├── fixer.py
+│   ├── packager.py
+│   ├── verifier.py
+│   └── builders/          # python, electron, csharp, cpp, html
+├── knowledge/
+│   └── known_errors.json  # regex → fix action
+├── llm/                   # ollama, openai-compat, gguf, router
+├── neural_core/           # NAP++ / INTENTION_ENGINE тексты + system_prompt()
+├── server/phone_api.py    # FastAPI + WebSocket :8787
+├── ui/main_window.py      # PySide6
+├── templates/             # NSIS / Inno jinja stubs
+├── BuildForge.spec        # PyInstaller spec самого BuildForge
+└── docs/index.html        # эта страница</div>
+
+      <h3>Поток данных</h3>
+      <ol>
+        <li>Пользователь запускает <code>app.py</code> (GUI / CLI <code>-p</code> / <code>--serve-phone</code>).</li>
+        <li>Создаётся <code>Orchestrator</code>: Memory, ResourceGuard, агенты, optional LLM.</li>
+        <li><code>run(project_dir, mode, target)</code> ведёт job и шлёт события в <code>BUS</code> (GUI и phone их слушают).</li>
+        <li>Результат — <code>BuildResult</code>: ok, stage, artifacts[], log_tail, duration, kind.</li>
+      </ol>
+    </section>
+
+    <section id="pipeline">
+      <h2>Как работает пайплайн (код оркестратора)</h2>
+      <div class="flow">
+        <span class="step">DETECT</span><span class="arrow">→</span>
+        <span class="step">DIAGNOSE</span><span class="arrow">→</span>
+        <span class="step">PREPARE</span><span class="arrow">→</span>
+        <span class="step">BUILD</span><span class="arrow">→</span>
+        <span class="step">FIX-LOOP</span><span class="arrow">→</span>
+        <span class="step">PACKAGE</span><span class="arrow">→</span>
+        <span class="step">VERIFY</span><span class="arrow">→</span>
+        <span class="step">REMEMBER</span>
+      </div>
+
+      <h3>1. DETECT — <code>DetectorAgent</code></h3>
+      <p>Смотрит файлы в корне проекта. Приоритет примерно такой: Electron (package.json+electron) → C# → CMake/C++ → Python → HTML. Возвращает <code>DetectResult(kind, entrypoint, confidence, hints)</code>. Если unknown — job сразу FAILED.</p>
+
+      <h3>2. DIAGNOSE — <code>DiagnosticianAgent</code></h3>
+      <p>Проверяет toolchain в PATH: git, python, node/npm, dotnet, cmake, компилятор C++, makensis/iscc, pyinstaller. <strong>Blockers</strong> (обязательное отсутствует) останавливают job. Warnings — нет.</p>
+
+      <h3>3. PREPARE — builder.prepare()</h3>
+      <p>Зависит от стека: venv+pip, npm install, dotnet restore, cmake configure… При fail — один проход fix_loop и retry prepare.</p>
+
+      <h3>4. BUILD — builder.build()</h3>
+      <p>Собственно сборка. Должна вернуть <code>(ok, log, artifacts[])</code>.</p>
+
+      <h3>5. FIX-LOOP — до <code>max_fix_retries</code> (по умолчанию 3)</h3>
+      <p><code>FixerAgent.match(log, kind)</code>:</p>
+      <ol>
+        <li>Ищет урок в SQLite memory по signature ошибки.</li>
+        <li>Иначе матчит regex из <code>known_errors.json</code> (module not found → pip_install, npm missing, defender Access denied, нет dotnet/cmake, TS/CS compile → llm_or_manual…).</li>
+        <li><code>apply()</code> выполняет действие: pip/npm install, powershell Defender exclusion, report_toolchain и т.д.</li>
+        <li>В режиме <code>neural</code>, если rules не помогли — LLM просят одну Windows-команду вида <code>CMD: ...</code> и выполняют её через <code>run_cmd</code>.</li>
+      </ol>
+
+      <h3>6. PACKAGE — <code>PackagerAgent</code></h3>
+      <p>По <code>target</code> (<code>exe</code> / <code>zip</code> / <code>exe+installer</code>): zip артефактов; если есть .exe и есть <code>makensis</code> — пытается собрать NSIS installer. Нет NSIS — честно пишет, что будет только ZIP.</p>
+
+      <h3>7. VERIFY — <code>VerifierAgent</code></h3>
+      <p>Для .exe: короткий Popen + terminate (smoke). Не .exe — skip. Это не полный e2e-тест UI.</p>
+
+      <h3>8. REMEMBER</h3>
+      <p>Пишет lesson <code>pipeline_ok</code> / <code>build_failed</code>, action в memory, финальный status DONE/FAILED.</p>
+
+      <div class="callout ok">
+        <b>Почему fix не бесконечный:</b> счётчик retries + stop event. Нет «вечного цикла». LLM не вызывается в autopilot, если вы сами его не включили.
+      </div>
+    </section>
+
+    <section id="kernel">
+      <h2>Ядро NEURAL_ARCHITECT_PREMIUM++</h2>
+      <p class="intro">
+        Каталог <code>neural_core/</code> — текстовое и программное ядро личности/протоколов.
+        В neural-режиме оно собирается в system prompt через <code>system_prompt()</code> в <code>neural_core/__init__.py</code>.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Файл</th><th>Роль</th></tr></thead>
+          <tbody>
+            <tr><td><code>v8.txt</code></td><td>Полный системный промт NAP++ ULTIMATE v8 (из neural-architect-premium-pages)</td></tr>
+            <tr><td><code>FULL_PROMPT.md</code> + <code>00_…06_*.md</code></td><td>INTENTION_ENGINE v8.4.00: activation, identity, architecture, decomposition, truth chain, vector correction, commands</td></tr>
+            <tr><td><code>BUILDFORGE_PERSONA.md</code></td><td>Привязка ядра к задаче BuildForge: миссия сборки, обращение «Неиро», автор</td></tr>
+            <tr><td><code>__init__.py</code></td><td><code>KERNEL_NAME</code>, <code>KERNEL_VERSION</code>, <code>AUTHOR</code>, <code>CONTACTS</code>, сборка prompt (persona + выдержки протоколов + excerpt v8)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Как протоколы ядра стыкуются с кодом</h3>
+      <ul>
+        <li><strong>DECOMPOSITION</strong> → стадии <code>Stage</code> и порядок вызовов в <code>Orchestrator.run</code>.</li>
+        <li><strong>TRUTH VERIFICATION CHAIN</strong> → обязательные artifacts + verifier; fail без файлов.</li>
+        <li><strong>VECTOR CORRECTION</strong> → memory.lessons: ошибка → действие → success/hits, повторное использование.</li>
+        <li><strong>SELF-HEALING</strong> → Fixer + known_errors + optional LLM CMD.</li>
+      </ul>
+      <p>
+        Источники ядра:
+        <a href="https://github.com/smol0901-jpg/neural-architect-premium-pages/blob/main/v8.txt" target="_blank" rel="noopener">v8 ULTIMATE</a> ·
+        <a href="https://smol0901-jpg.github.io/INTENTION_ENGINE_v8.4.00/" target="_blank" rel="noopener">INTENTION_ENGINE v8.4.00</a>
+      </p>
+      <p>Обращение к агенту/ядру в продуктовой логике: <strong>Неиро</strong> / BuildForge.</p>
+    </section>
+
+    <section id="modes">
+      <h2>Режимы работы</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Mode</th><th>Поведение</th><th>LLM</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>autopilot</code></td>
+              <td>Полный пайплайн на rules + builders + memory. Основной режим CLI по умолчанию.</td>
+              <td>Не нужен</td>
+            </tr>
+            <tr>
+              <td><code>manual</code></td>
+              <td>Тот же оркестратор, управление через GUI/CLI (кнопки, явный запуск).</td>
+              <td>Опционально</td>
+            </tr>
+            <tr>
+              <td><code>neural</code></td>
+              <td>При blockers/fail подключает chat LLM; fix может выполнить <code>CMD:</code> из ответа. GUI chat → <code>neural_chat()</code>.</td>
+              <td>Ollama / OpenAI-compatible / GGUF</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>LLM backends (<code>llm/router.py</code>)</h3>
+      <ul>
+        <li><code>ollama</code> — HTTP <code>/api/chat</code> (по умолчанию <code>http://127.0.0.1:11434</code>, модель из env/флага).</li>
+        <li><code>openai</code> / lmstudio — OpenAI-compatible chat completions.</li>
+        <li><code>gguf</code> — локально через <code>llama-cpp-python</code> (если установлен) + путь к модели.</li>
+        <li><code>none</code> — LLM выключен.</li>
+      </ul>
+      <p>Конфиг-пример: <code>.env.example</code> (<code>BUILDFORGE_MODE</code>, <code>BUILDFORGE_LLM</code>, <code>BUILDFORGE_MODEL</code>, <code>BUILDFORGE_MAX_FIX_RETRIES</code>, phone port).</p>
+
+      <h3>Интерфейсы</h3>
+      <ul>
+        <li><strong>CLI</strong> — Typer в <code>app.py</code>: <code>-p</code>, <code>-m</code>, <code>--llm</code>, <code>-t</code>, <code>--gui</code>, <code>--serve-phone</code>.</li>
+        <li><strong>GUI</strong> — <code>ui/main_window.py</code> (PySide6): выбор папки, mode/llm/target, лог BUS, chat, кнопка phone.</li>
+        <li><strong>Phone API</strong> — <code>server/phone_api.py</code>: FastAPI + WebSocket, страница управления, <code>POST /api/build</code>, <code>/api/stop</code>, status/logs. Слушает <code>0.0.0.0:8787</code> (LAN).</li>
+      </ul>
+    </section>
+
+    <section id="deps">
+      <h2>Зависимости и сборка самого BuildForge</h2>
+      <p><code>requirements.txt</code>: PySide6, fastapi, uvicorn, websockets, httpx, pydantic, jinja2, psutil, rich, typer.</p>
+      <p>Сборка своего EXE: <code>build_exe.bat</code> + <code>BuildForge.spec</code> (PyInstaller, подхватывает neural_core/knowledge/templates).</p>
+      <div class="callout">
+        <b>Честно:</b> для сборки <em>чужих</em> проектов на машине всё равно нужны их toolchain’ы (Node, .NET SDK, CMake/compiler, NSIS…). BuildForge их не заменяет — он их вызывает и чинит типичные сбои установки зависимостей.
+      </div>
+    </section>
+
+    <section id="start">
+      <h2>Запуск и скачивание</h2>
+      <pre><code>git clone https://github.com/smol0901-jpg/buildforge-agents.git
 cd buildforge-agents
-python -m venv .venv && .venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-python app.py --gui</code>
-          <p style="color:var(--muted);font-size:.9rem;line-height:1.55;margin-bottom:16px">
-            CLI: <code style="display:inline;padding:2px 6px">python app.py -p D:\MyApp -m autopilot</code><br/>
-            Neural: <code style="display:inline;padding:2px 6px">--llm ollama --model qwen2.5:7b</code><br/>
-            Phone: <code style="display:inline;padding:2px 6px">python app.py --serve-phone --port 8787</code>
-          </p>
-          <div style="display:flex;flex-wrap:wrap;gap:10px">
-            <a class="btn btn-primary" href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">Открыть репозиторий</a>
-            <a class="btn btn-ghost" href="https://github.com/smol0901-jpg/buildforge-agents/archive/refs/heads/main.zip">Скачать ZIP</a>
-            <a class="btn btn-ghost" href="https://github.com/smol0901-jpg/setuper" target="_blank" rel="noopener">Предок: setuper</a>
-          </div>
-        </div>
-        <div class="dl-box reveal" id="author">
-          <h3 style="font-family:Orbitron,sans-serif;margin-bottom:16px">Автор</h3>
-          <div class="author">
-            <div class="avatar">ASV</div>
-            <div>
-              <h3>Смолянинов Александр Вячеславович</h3>
-              <p>ASV_PROD · NEURAL_ARCHITECT_PREMIUM++</p>
-            </div>
-          </div>
-          <div class="links" style="margin-top:18px">
-            <a href="https://t.me/ASV_prod" target="_blank" rel="noopener">@ASV_prod</a>
+
+:: GUI
+python app.py --gui
+
+:: CLI autopilot
+python app.py -p D:\MyApp -m autopilot -t exe+installer
+
+:: Neural + Ollama
+python app.py -p D:\MyApp -m neural --llm ollama --model qwen2.5:7b
+
+:: Управление с телефона (тот же Wi‑Fi)
+python app.py --serve-phone --port 8787
+:: открыть http://<IP-ПК>:8787</code></pre>
+      <div class="actions" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">
+        <a class="btn" href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn secondary" href="https://github.com/smol0901-jpg/buildforge-agents/archive/refs/heads/main.zip">ZIP main</a>
+        <a class="btn secondary" href="https://github.com/smol0901-jpg/buildforge-agents/blob/main/README.md" target="_blank" rel="noopener">README</a>
+      </div>
+    </section>
+
+    <section id="author">
+      <h2>Автор и система</h2>
+      <div class="author">
+        <div class="avatar">ASV</div>
+        <div>
+          <h3>Смолянинов Александр Вячеславович</h3>
+          <p>ASV_PROD · линия NEURAL_ARCHITECT_PREMIUM++ / INTENTION_ENGINE</p>
+          <div class="links">
+            <a href="https://t.me/ASV_prod" target="_blank" rel="noopener">Telegram @ASV_prod</a>
             <a href="https://vk.com/smolyaninovchef" target="_blank" rel="noopener">VK</a>
-            <a href="https://github.com/smol0901-jpg" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/smol0901-jpg" target="_blank" rel="noopener">GitHub @smol0901-jpg</a>
           </div>
-          <p style="margin-top:18px;color:var(--muted);font-size:.9rem;line-height:1.55">
-            Обращение к ядру: <b style="color:#fff">Неиро</b>.  
-            Лицензия MIT. Эволюция BuildDoctor / setuper → BuildForge Agents.
-          </p>
         </div>
       </div>
-    </div>
-  </section>
+      <h3 style="margin-top:22px">Связанные системы</h3>
+      <ul>
+        <li><a href="https://github.com/smol0901-jpg/buildforge-agents" target="_blank" rel="noopener">buildforge-agents</a> — этот репозиторий (фабрика сборки).</li>
+        <li><a href="https://github.com/smol0901-jpg/setuper" target="_blank" rel="noopener">setuper</a> — предыдущая ветка/предок по задаче упаковки.</li>
+        <li><a href="https://github.com/smol0901-jpg/neural-architect-premium-pages" target="_blank" rel="noopener">neural-architect-premium-pages</a> — носитель v8.txt и страниц NAP++.</li>
+        <li><a href="https://smol0901-jpg.github.io/INTENTION_ENGINE_v8.4.00/" target="_blank" rel="noopener">INTENTION_ENGINE v8.4.00</a> — протоколы decomposition / truth / vector correction.</li>
+      </ul>
+      <p style="margin-top:12px;color:var(--muted)">
+        В коде константы: <code>AUTHOR = «Смолянинов Александр Вячеславович / ASV_PROD»</code>,
+        контакты <code>@ASV_prod</code>, VK smolyaninovchef. Подпись автора добавляется в финальные сообщения neural_chat / BuildResult.
+      </p>
+    </section>
+
+    <footer>
+      <strong>BuildForge Agents</strong> — техническое описание по состоянию ветки <code>main</code>.
+      Страница сгенерирована из анализа исходников репозитория, без рекламных обещаний «сверхвозможностей».
+      Если код изменится — сверяйте с GitHub.<br/><br/>
+      © ASV_PROD · MIT ·
+      <a href="https://github.com/smol0901-jpg/buildforge-agents">github.com/smol0901-jpg/buildforge-agents</a>
+    </footer>
+  </div>
 </main>
-
-<footer>
-  <strong>BuildForge Agents</strong> · ветка NEURAL_ARCHITECT_PREMIUM++ · kernel 8.4.00-buildforge<br/>
-  © ASV_PROD · cinematic page inspired by immersive scroll / Immersions.js aesthetics
-</footer>
-<div class="scroll-hint" id="hint">scroll · immersion</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script>
-(() => {
-  // ----- scroll progress + reveal -----
-  const progress = document.getElementById('progress');
-  const nav = document.getElementById('nav');
-  const reveals = () => document.querySelectorAll('.reveal');
-  const onScroll = () => {
-    const h = document.documentElement;
-    const max = h.scrollHeight - h.clientHeight;
-    const p = max > 0 ? h.scrollTop / max : 0;
-    progress.style.width = (p * 100) + '%';
-    nav.classList.toggle('scrolled', h.scrollTop > 40);
-    document.getElementById('hint').style.opacity = p > 0.08 ? '0' : '.7';
-    reveals().forEach(el => {
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight * 0.88) el.classList.add('on');
-    });
-    // camera target from scroll
-    window.__scrollP = p;
-  };
-  window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-
-  // hero entrance
-  requestAnimationFrame(() => {
-    ['kicker','title','lead','actions','meta'].forEach((id,i)=>{
-      const el = document.getElementById(id);
-      if(!el) return;
-      setTimeout(()=>{ el.style.transition='opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1)'; el.style.opacity=1; el.style.transform='none'; }, 180 + i*140);
-    });
-  });
-
-  // ----- Three.js cinematic scene -----
-  const canvas = document.getElementById('webgl');
-  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setClearColor(0x000000, 0);
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
-  camera.position.set(0, 0.6, 8);
-
-  // fog
-  scene.fog = new THREE.FogExp2(0x03040a, 0.045);
-
-  // lights
-  const amb = new THREE.AmbientLight(0x6688ff, 0.35); scene.add(amb);
-  const key = new THREE.PointLight(0x7c5cff, 2.2, 40); key.position.set(4, 6, 4); scene.add(key);
-  const rim = new THREE.PointLight(0x00e5ff, 1.6, 40); rim.position.set(-6, -2, 3); scene.add(rim);
-  const pink = new THREE.PointLight(0xff4d9a, 1.1, 30); pink.position.set(0, 3, -4); scene.add(pink);
-
-  // starfield
-  const starGeo = new THREE.BufferGeometry();
-  const starCount = 1800;
-  const starPos = new Float32Array(starCount * 3);
-  for(let i=0;i<starCount;i++){
-    starPos[i*3] = (Math.random()-0.5)*80;
-    starPos[i*3+1] = (Math.random()-0.5)*50;
-    starPos[i*3+2] = (Math.random()-0.5)*80 - 10;
-  }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xaaccff, size:0.035, transparent:true, opacity:0.85}));
-  scene.add(stars);
-
-  // central torus knot "core"
-  const coreMat = new THREE.MeshStandardMaterial({
-    color:0x1a1040, metalness:0.85, roughness:0.25,
-    emissive:0x3b1fa0, emissiveIntensity:0.55
-  });
-  const core = new THREE.Mesh(new THREE.TorusKnotGeometry(1.15, 0.32, 220, 28), coreMat);
-  scene.add(core);
-
-  // wire shell
-  const shell = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(2.35, 1),
-    new THREE.MeshBasicMaterial({color:0x00e5ff, wireframe:true, transparent:true, opacity:0.18})
-  );
-  scene.add(shell);
-
-  // orbiting nodes (agents)
-  const agents = [];
-  const agentColors = [0x7c5cff, 0x00e5ff, 0xff4d9a, 0x7cffb2, 0xffd166, 0x66a3ff];
-  const agentGroup = new THREE.Group(); scene.add(agentGroup);
-  for(let i=0;i<6;i++){
-    const m = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.16 + Math.random()*0.08, 0),
-      new THREE.MeshStandardMaterial({color:agentColors[i], emissive:agentColors[i], emissiveIntensity:0.8, metalness:0.4, roughness:0.3})
-    );
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(0.28, 0.015, 8, 48),
-      new THREE.MeshBasicMaterial({color:agentColors[i], transparent:true, opacity:0.7})
-    );
-    const g = new THREE.Group(); g.add(m); g.add(ring);
-    g.userData = { angle: (i/6)*Math.PI*2, radius: 3.1 + (i%2)*0.45, speed: 0.25 + i*0.04, y: (i-2.5)*0.35 };
-    agentGroup.add(g); agents.push(g);
-  }
-
-  // connecting lines
-  const lineMat = new THREE.LineBasicMaterial({color:0x7c5cff, transparent:true, opacity:0.25});
-  const lineGeo = new THREE.BufferGeometry();
-  const linePos = new Float32Array(agents.length * 2 * 3);
-  lineGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
-  const lines = new THREE.LineSegments(lineGeo, lineMat); scene.add(lines);
-
-  // floor grid plane
-  const grid = new THREE.GridHelper(40, 40, 0x3b2a7a, 0x151828);
-  grid.position.y = -3.2; scene.add(grid);
-
-  // mouse parallax
-  let mx=0, my=0, tx=0, ty=0;
-  window.addEventListener('pointermove', e => {
-    tx = (e.clientX / innerWidth - 0.5) * 2;
-    ty = (e.clientY / innerHeight - 0.5) * 2;
-  }, {passive:true});
-
-  window.addEventListener('resize', () => {
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
-
-  const clock = new THREE.Clock();
-  function animate(){
-    const t = clock.getElapsedTime();
-    const sp = window.__scrollP || 0;
-    mx += (tx - mx)*0.04; my += (ty - my)*0.04;
-
-    core.rotation.x = t*0.25 + my*0.2;
-    core.rotation.y = t*0.35 + mx*0.3;
-    shell.rotation.x = -t*0.12; shell.rotation.y = t*0.18;
-    shell.scale.setScalar(1 + Math.sin(t*0.8)*0.03 + sp*0.15);
-    stars.rotation.y = t*0.02 + sp*0.4;
-    grid.position.z = ((t*0.4) % 1);
-
-    // agents orbit
-    const arr = lineGeo.attributes.position.array;
-    agents.forEach((g,i) => {
-      const u = g.userData;
-      u.angle += u.speed * 0.01;
-      const x = Math.cos(u.angle) * u.radius;
-      const z = Math.sin(u.angle) * u.radius;
-      const y = u.y + Math.sin(t*1.2 + i)*0.15;
-      g.position.set(x,y,z);
-      g.rotation.x += 0.02; g.rotation.y += 0.03;
-      arr[i*6] = 0; arr[i*6+1]=0; arr[i*6+2]=0;
-      arr[i*6+3]=x; arr[i*6+4]=y; arr[i*6+5]=z;
-    });
-    lineGeo.attributes.position.needsUpdate = true;
-
-    // cinematic camera path by scroll
-    const camZ = 8 - sp*4.5;
-    const camY = 0.6 + sp*1.8 + my*0.4;
-    const camX = mx*1.2;
-    camera.position.x += (camX - camera.position.x)*0.05;
-    camera.position.y += (camY - camera.position.y)*0.05;
-    camera.position.z += (camZ - camera.position.z)*0.05;
-    camera.lookAt(0, sp*0.8, 0);
-
-    key.intensity = 2.0 + Math.sin(t*2)*0.3;
-    rim.intensity = 1.4 + Math.cos(t*1.5)*0.25;
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
-  }
-  animate();
-})();
-</script>
 </body>
 </html>

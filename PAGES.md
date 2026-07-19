@@ -1,13 +1,15 @@
-# BuildForge cinematic page
+# Документация (GitHub Pages)
 
-**URL (after enabling Pages):** https://smol0901-jpg.github.io/buildforge-agents/
+**URL:** https://smol0901-jpg.github.io/buildforge-agents/
 
-## Enable
-Repo → Settings → Pages → Branch: `main` → Folder: `/docs` → Save.
+Страница — **техническое описание по реальному коду** репозитория:
 
-## Content
-- 3D WebGL scene (Three.js): torus-knot core, orbiting agents, starfield, scroll-camera
-- Sections: hero, features, pipeline, download, author ASV_PROD
-- Links: GitHub clone, ZIP, INTENTION_ENGINE, setuper, @ASV_prod, VK
+- что делает система и чего не делает
+- принципы (decomposition, truth chain, self-healing, memory)
+- архитектура каталогов
+- пайплайн Orchestrator по стадиям
+- ядро `neural_core/` (NAP++ / INTENTION_ENGINE)
+- режимы autopilot/manual/neural и LLM backends
+- запуск, ZIP, автор ASV_PROD
 
-Style: dark cinematic immersion inspired by Immersions.js aesthetics.
+Source: `docs/index.html` (Pages: branch `main`, folder `/docs`).
